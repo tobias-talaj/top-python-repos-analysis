@@ -71,9 +71,9 @@ def load_library_reference(pickle_path: str) -> Dict:
     return lib_dict
 
 
-def process_file(code_file: str, script_dir: str, lib_dict: Dict) -> Dict:
+def process_file(lib_dict: Dict, code_file: str, python_files_path: str) -> Dict:
     component_counter = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
-    relative_path = os.path.relpath(code_file, script_dir)
+    relative_path = os.path.relpath(code_file, python_files_path)
     with open(code_file, 'r') as f:
         code = f.read()
     try:
@@ -98,11 +98,12 @@ def process_file(code_file: str, script_dir: str, lib_dict: Dict) -> Dict:
         return {}
 
 
-def count_lib_components(pickle_path: str, code_files: List[str], script_dir: str) -> Dict:
+def count_lib_components(pickle_path: str, python_files_path: str) -> Dict:
+    code_files = find_python_files(python_files_path, dir_range=(0, 1))
     lib_dict = load_library_reference(pickle_path)
     component_counter = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
     for code_file in code_files:
-        file_component_counter = process_file(code_file, script_dir, lib_dict)
+        file_component_counter = process_file(lib_dict, code_file, python_files_path)
         component_counter.update(file_component_counter)
     return component_counter
 
@@ -110,12 +111,11 @@ def count_lib_components(pickle_path: str, code_files: List[str], script_dir: st
 if __name__ == '__main__':
     pickle_path = '/workspaces/repos/top-python-repos-analysis/api_reference_pickles/standard_library.pickle'
     parquet_path = '/workspaces/repos/top-python-repos-analysis/data/component_counter.parquet'
-
-    code_files = find_python_files("/workspaces/repos/shared/python_repos", dir_range=(0, 20))
+    python_files_path = '/workspaces/repos/shared/python_repos'
 
     import time
     start = time.time()
-    component_counts = count_lib_components(pickle_path, code_files, os.getcwd())
+    component_counts = count_lib_components(pickle_path, python_files_path)
     save_dict_as_parquet(component_counts, parquet_path)
     end = time.time()
     print(f"Time: {end - start}")
