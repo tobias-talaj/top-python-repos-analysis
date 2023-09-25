@@ -98,9 +98,7 @@ def process_file(lib_dict: Dict, code_file: str, python_files_path: str) -> Dict
         return {}
 
 
-def count_lib_components(pickle_path: str, python_files_path: str) -> Dict:
-    code_files = find_python_files(python_files_path, dir_range=(0, 1))
-    lib_dict = load_library_reference(pickle_path)
+def count_lib_components(lib_dict: Dict, code_files: List[str]) -> Dict:
     component_counter = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
     for code_file in code_files:
         file_component_counter = process_file(lib_dict, code_file, python_files_path)
@@ -115,7 +113,9 @@ if __name__ == '__main__':
 
     import time
     start = time.time()
-    component_counts = count_lib_components(pickle_path, python_files_path)
+    lib_dict = load_library_reference(pickle_path)
+    code_files = find_python_files(python_files_path, dir_range=(0, 1))
+    component_counts = count_lib_components(lib_dict, code_files)
     save_dict_as_parquet(component_counts, parquet_path)
     end = time.time()
     print(f"Time: {end - start}")
