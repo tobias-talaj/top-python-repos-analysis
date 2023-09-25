@@ -1,4 +1,6 @@
 import os
+import pickle
+from collections import Counter
 from typing import List, Tuple, Dict
 
 import pandas as pd
@@ -38,31 +40,34 @@ def find_python_files(root_directory: str, filetype: str = '.py', dir_range: Tup
     return python_files
 
 
-def save_dict_as_parquet(component_counter: Dict[str, Dict[str, Dict[str, Dict[str, int]]]], parquet_path: str) -> None:
+def save_dict_as_parquet(counter: Counter, parquet_path: str) -> None:
     """
-    Convert the nested defaultdict to a Pandas DataFrame and save it as a Parquet file.
+    Convert the Counter of tuples to a Pandas DataFrame and save it as a Parquet file.
 
     Parameters:
-    - component_counter (Dict[str, Dict[str, Dict[str, Dict[str, int]]]]): The nested dictionary structure containing 
-      filenames, module names, component types, component names, and their respective counts.
+    - counter (Counter): The Counter with keys as tuples containing filenames, module names, component types, 
+      component names, and values as their respective counts.
     - parquet_path (str): The file path where the Parquet file will be saved.
 
     Returns:
     - None: The function saves the data as a Parquet file and does not return anything.
     """
     rows = []
-    for filename, modules in component_counter.items():
-        for module, component_types in modules.items():
-            for component_type, components in component_types.items():
-                for component_name, count in components.items():
-                    row = {
-                        'filename': filename,
-                        'module': module,
-                        'component_type': component_type,
-                        'component_name': component_name,
-                        'count': count
-                    }
-                    rows.append(row)
-                
+    for (filename, module, component_type, component_name), count in counter.items():
+        row = {
+            'filename': filename,
+            'module': module,
+            'component_type': component_type,
+            'component_name': component_name,
+            'count': count
+        }
+        rows.append(row)
+
     df = pd.DataFrame(rows)
     df.to_parquet(parquet_path, engine='pyarrow')
+
+
+def load_library_reference(library_pickle_path: str) -> Dict:
+    with open(library_pickle_path, 'rb') as f:
+        lib_dict = pickle.load(f)
+    return lib_dict
