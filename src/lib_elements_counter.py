@@ -160,7 +160,7 @@ def count_lib_components(lib_dict: Dict, code_files: List[str]) -> Dict:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--library_pickle_path", default="./api_reference_pickles/standard_library.pickle")
-    parser.add_argument("--output_parquet_path", default="./data/component_counter.parquet")
+    parser.add_argument("--output_parquet_path", default="./data/py_component_counter.parquet")
     parser.add_argument("--input_python_files_path", default="/workspaces/repos/shared/python_repos")
     args = parser.parse_args()
 
