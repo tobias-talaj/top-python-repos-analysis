@@ -23,8 +23,9 @@ def find_python_files(root_directory: str, filetype: str = ".py", dir_range: Tup
 
     python_files = []
     dir_counter = -1
-
+    print(f"Root directory: {root_directory}")
     for dirpath, dirnames, filenames in os.walk(root_directory):
+        print(dirpath)
         if os.path.dirname(dirpath) == root_directory:
             dir_counter += 1
         if dir_counter < dir_range[0]:

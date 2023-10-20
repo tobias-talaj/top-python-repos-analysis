@@ -5,7 +5,7 @@ from functools import partial
 from multiprocessing import Pool
 from collections import defaultdict, Counter
 
-from src.utils import find_python_files, save_dict_as_parquet, load_library_reference
+from utils import find_python_files, save_dict_as_parquet, load_library_reference
 
 
 def get_imported_modules(tree: ast.AST, max_depth: int = 2) -> Tuple[Set[str], Dict[str, str]]:
@@ -161,13 +161,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--library_pickle_path", default="./api_reference_pickles/standard_library.pickle")
     parser.add_argument("--output_parquet_path", default="./data/py_component_counter.parquet")
-    parser.add_argument("--input_python_files_path", default="/workspaces/repos/shared/python_repos")
+    parser.add_argument("--input_python_files_path", default="/workspaces/repos/shared/test")
     args = parser.parse_args()
 
+    print("Loading library reference...")
     lib_dict = load_library_reference(args.library_pickle_path)
-    code_files = find_python_files(args.input_python_files_path, dir_range=(0, 50))
-    component_counts = count_lib_components(lib_dict, code_files)
+    print("Updating list of Python files...")
+    code_files = find_python_files(args.input_python_files_path)
+    print("Counting library components occurences...")
+    component_counts = count_lib_components(lib_dict, code_files[:20])
+    print("Saving data to parquet...")
     save_dict_as_parquet(component_counts, args.output_parquet_path)
+    print("DONE")
 
 
 if __name__ == "__main__":
