@@ -1,11 +1,26 @@
 import os
 import pickle
+import logging
 import nbformat
 from collections import Counter
 from nbconvert import PythonExporter
 from typing import List, Tuple, Dict
 
 import pandas as pd
+
+
+def setup_logger():
+    logger = logging.getLogger('python_repo_analysis')
+    logger.setLevel(logging.ERROR)
+    file_handler = logging.FileHandler('errors.log', mode='w')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    if not logger.hasHandlers():
+        logger.addHandler(file_handler)
+    return logger
+
+
+logger = setup_logger()
 
 
 def find_python_files(root_directory: str, filetype: str = ".py", dir_range: Tuple[int, int] = (0, float("inf"))) -> List[str]:
@@ -52,9 +67,14 @@ def convert_notebook_to_python(notebook_json: str) -> str:
     Returns:
         str: The Python script converted from the Jupyter Notebook JSON string.
     """
-    notebook_node = nbformat.reads(notebook_json, as_version=4)
-    exporter = PythonExporter()
-    python_script, _ = exporter.from_notebook_node(notebook_node)
+    python_script = ''
+
+    try:
+        notebook_node = nbformat.reads(notebook_json, as_version=4)
+        exporter = PythonExporter()
+        python_script, _ = exporter.from_notebook_node(notebook_node)
+    except IndentationError as e:
+        logger.error(f"Couldn't convert notebook to python: {e}")
 
     return python_script
 

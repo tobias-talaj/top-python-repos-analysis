@@ -1,12 +1,12 @@
 import ast
 import logging
 import argparse
-from typing import List, Dict, Tuple, Set
 from functools import partial
 from multiprocessing import Pool
+from typing import List, Dict, Tuple, Set
 from collections import defaultdict, Counter
 
-from utils import find_python_files, save_dict_as_parquet, load_library_reference, convert_notebook_to_python
+from src.utils import find_python_files, save_dict_as_parquet, load_library_reference, convert_notebook_to_python, setup_logger
 
 
 def get_imported_modules(tree: ast.AST, max_depth: int = 2) -> Tuple[Set[str], Dict[str, str]]:
@@ -95,11 +95,12 @@ def check_node(node: ast.AST, components: Dict[str, List[str]], component_counte
             component_counter[(code_file, module, "exception", exc_name)] += 1
 
 
-def process_file(lib_dict: Dict, code_file: str) -> Dict:
+def process_file(logger: logging.Logger, lib_dict: Dict, code_file: str) -> Dict:
     """
     Process a single file, returning counts of library components.
 
     Parameters:
+    logger: Logger object for logging messages.
     lib_dict: A dictionary representing API reference of one or more libraries.
     code_file: The path to the file to process.
 
@@ -111,7 +112,7 @@ def process_file(lib_dict: Dict, code_file: str) -> Dict:
         with open(code_file, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
     except IOError as e:
-        logging.error(f"Error reading file {code_file}: {e}")
+        logger.error(f"Error reading file {code_file}: {e}")
         return Counter()
     
     if code_file.endswith('.ipynb'):
@@ -128,11 +129,11 @@ def process_file(lib_dict: Dict, code_file: str) -> Dict:
                 check_node(node, components, component_counter, code_file, module, direct_imports[module])
         return component_counter
     except SyntaxError as e:
-        logging.error(f"Syntax error parsing file {code_file}: {e}")
+        logger.error(f"Syntax error parsing file {code_file}: {e}")
         return Counter()
 
 
-def count_lib_components(lib_dict: Dict, code_files: List[str]) -> Dict:
+def count_lib_components(logger: logging.Logger, lib_dict: Dict, code_files: List[str]) -> Dict:
     """
     Count the occurrences of library components in a list of Python files.
 
@@ -142,6 +143,7 @@ def count_lib_components(lib_dict: Dict, code_files: List[str]) -> Dict:
     which is returned.
 
     Parameters:
+    logger: Logger object for logging messages.
     lib_dict: A dict representing the library. The keys are module names and the values are dicts
               that group library components by type (e.g., 'function', 'class', etc.).
     code_files: A list of paths to Python code files.
@@ -152,7 +154,7 @@ def count_lib_components(lib_dict: Dict, code_files: List[str]) -> Dict:
     Raises:
     An exception may be raised if there's an error reading a file or parsing the Python code.
     """
-    process_file_partial = partial(process_file, lib_dict)
+    process_file_partial = partial(process_file, logger, lib_dict)
     with Pool() as pool:
         all_files_components_counts = pool.map(process_file_partial, code_files)
     component_counter = Counter()
@@ -164,18 +166,18 @@ def count_lib_components(lib_dict: Dict, code_files: List[str]) -> Dict:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--library_pickle_path", default="./api_reference_pickles/standard_library.pickle")
-    parser.add_argument("--output_parquet_path", default="./data/ipynb_component_counter.parquet")
+    parser.add_argument("--output_parquet_path", default="./data/ipynb_component_counter_jupyter_repos.parquet")
     parser.add_argument("--input_python_files_path", default="/media/tobiasz/crucial/jupyter_repos/")
     args = parser.parse_args()
 
-    logging.basicConfig(filename='syntax_errors.log', level=logging.ERROR, filemode='w')
+    logger = setup_logger()
 
     print("Loading library reference...")
     lib_dict = load_library_reference(args.library_pickle_path)
     print("Updating list of Python files...")
-    code_files = find_python_files(args.input_python_files_path, dir_range=(0, 100))
+    code_files = find_python_files(args.input_python_files_path, filetype='.ipynb', dir_range=(0, 5))
     print("Counting library components occurences...")
-    component_counts = count_lib_components(lib_dict, code_files)
+    component_counts = count_lib_components(logger, lib_dict, code_files)
     print("Saving data to parquet...")
     save_dict_as_parquet(component_counts, args.output_parquet_path)
     print("DONE")
