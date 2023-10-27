@@ -1,11 +1,12 @@
 import ast
+import logging
 import argparse
 from typing import List, Dict, Tuple, Set
 from functools import partial
 from multiprocessing import Pool
 from collections import defaultdict, Counter
 
-from utils import find_python_files, save_dict_as_parquet, load_library_reference
+from utils import find_python_files, save_dict_as_parquet, load_library_reference, convert_notebook_to_python
 
 
 def get_imported_modules(tree: ast.AST, max_depth: int = 2) -> Tuple[Set[str], Dict[str, str]]:
@@ -107,11 +108,14 @@ def process_file(lib_dict: Dict, code_file: str) -> Dict:
     """
     component_counter = Counter()
     try:
-        with open(code_file, "r") as f:
+        with open(code_file, 'r', encoding='utf-8', errors='ignore') as f:
             code = f.read()
     except IOError as e:
-        print(f"Error reading file {code_file}: {e}")
+        logging.error(f"Error reading file {code_file}: {e}")
         return Counter()
+    
+    if code_file.endswith('.ipynb'):
+        code = convert_notebook_to_python(code)
 
     try:
         tree = ast.parse(code)
@@ -124,7 +128,7 @@ def process_file(lib_dict: Dict, code_file: str) -> Dict:
                 check_node(node, components, component_counter, code_file, module, direct_imports[module])
         return component_counter
     except SyntaxError as e:
-        print(f"Syntax error parsing file {code_file}: {e}")
+        logging.error(f"Syntax error parsing file {code_file}: {e}")
         return Counter()
 
 
@@ -160,16 +164,18 @@ def count_lib_components(lib_dict: Dict, code_files: List[str]) -> Dict:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--library_pickle_path", default="./api_reference_pickles/standard_library.pickle")
-    parser.add_argument("--output_parquet_path", default="./data/py_component_counter.parquet")
-    parser.add_argument("--input_python_files_path", default="/workspaces/repos/shared/test")
+    parser.add_argument("--output_parquet_path", default="./data/ipynb_component_counter.parquet")
+    parser.add_argument("--input_python_files_path", default="/media/tobiasz/crucial/jupyter_repos/")
     args = parser.parse_args()
+
+    logging.basicConfig(filename='syntax_errors.log', level=logging.ERROR, filemode='w')
 
     print("Loading library reference...")
     lib_dict = load_library_reference(args.library_pickle_path)
     print("Updating list of Python files...")
-    code_files = find_python_files(args.input_python_files_path)
+    code_files = find_python_files(args.input_python_files_path, dir_range=(0, 100))
     print("Counting library components occurences...")
-    component_counts = count_lib_components(lib_dict, code_files[:20])
+    component_counts = count_lib_components(lib_dict, code_files)
     print("Saving data to parquet...")
     save_dict_as_parquet(component_counts, args.output_parquet_path)
     print("DONE")
