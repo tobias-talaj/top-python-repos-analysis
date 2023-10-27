@@ -131,6 +131,9 @@ def process_file(logger: logging.Logger, lib_dict: Dict, code_file: str) -> Dict
     except SyntaxError as e:
         logger.error(f"Syntax error parsing file {code_file}: {e}")
         return Counter()
+    except Exception as e:
+        logger.error(f"Exception {code_file}: {e}")
+        return Counter()
 
 
 def count_lib_components(logger: logging.Logger, lib_dict: Dict, code_files: List[str]) -> Dict:
@@ -166,8 +169,8 @@ def count_lib_components(logger: logging.Logger, lib_dict: Dict, code_files: Lis
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--library_pickle_path", default="./api_reference_pickles/standard_library.pickle")
-    parser.add_argument("--output_parquet_path", default="./data/ipynb_component_counter_jupyter_repos.parquet")
-    parser.add_argument("--input_python_files_path", default="/media/tobiasz/crucial/jupyter_repos/")
+    parser.add_argument("--output_parquet_path", default="./data/py_component_counter_python_repos.parquet")
+    parser.add_argument("--input_python_files_path", default="/media/tobiasz/crucial/python_repos/")
     args = parser.parse_args()
 
     logger = setup_logger()
@@ -175,7 +178,7 @@ def main():
     print("Loading library reference...")
     lib_dict = load_library_reference(args.library_pickle_path)
     print("Updating list of Python files...")
-    code_files = find_python_files(args.input_python_files_path, filetype='.ipynb', dir_range=(0, 5))
+    code_files = find_python_files(args.input_python_files_path, filetype='.py')
     print("Counting library components occurences...")
     component_counts = count_lib_components(logger, lib_dict, code_files)
     print("Saving data to parquet...")

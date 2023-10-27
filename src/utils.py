@@ -1,6 +1,7 @@
 import os
 import pickle
 import logging
+import warnings
 import nbformat
 from collections import Counter
 from nbconvert import PythonExporter
@@ -70,10 +71,12 @@ def convert_notebook_to_python(notebook_json: str) -> str:
     python_script = ''
 
     try:
-        notebook_node = nbformat.reads(notebook_json, as_version=4)
-        exporter = PythonExporter()
-        python_script, _ = exporter.from_notebook_node(notebook_node)
-    except IndentationError as e:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            notebook_node = nbformat.reads(notebook_json, as_version=4)
+            exporter = PythonExporter()
+            python_script, _ = exporter.from_notebook_node(notebook_node)
+    except Exception as e:
         logger.error(f"Couldn't convert notebook to python: {e}")
 
     return python_script
