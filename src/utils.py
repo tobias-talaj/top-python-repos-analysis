@@ -3,11 +3,8 @@ import pickle
 import logging
 import warnings
 import nbformat
-from collections import Counter
 from nbconvert import PythonExporter
 from typing import List, Tuple, Dict
-
-import pandas as pd
 
 
 def setup_logger():
@@ -19,9 +16,6 @@ def setup_logger():
     if not logger.hasHandlers():
         logger.addHandler(file_handler)
     return logger
-
-
-logger = setup_logger()
 
 
 def find_python_files(root_directory: str, filetype: str = ".py", dir_range: Tuple[int, int] = (0, float("inf"))) -> List[str]:
@@ -58,15 +52,16 @@ def find_python_files(root_directory: str, filetype: str = ".py", dir_range: Tup
     return python_files
 
 
-def convert_notebook_to_python(notebook_json: str) -> str:
+def convert_notebook_to_python(notebook_json: str, logger: logging.Logger) -> str:
     """
     Convert a Jupyter Notebook (.ipynb) JSON string to a Python script.
 
-    Args:
-        notebook_json (str): The Jupyter Notebook JSON string to be converted.
+    Parameters:
+    notebook_json: The Jupyter Notebook JSON string to be converted.
+    logger: Logger object for logging messages.
 
     Returns:
-        str: The Python script converted from the Jupyter Notebook JSON string.
+    The Python script converted from the Jupyter Notebook JSON string.
     """
     python_script = ''
 
@@ -80,26 +75,6 @@ def convert_notebook_to_python(notebook_json: str) -> str:
         logger.error(f"Couldn't convert notebook to python: {e}")
 
     return python_script
-
-
-def save_dict_as_parquet(counter: Counter, parquet_path: str) -> None:
-    """
-    Convert the Counter of tuples to a Pandas DataFrame and save it as a Parquet file.
-
-    Parameters:
-    counter (Counter): The Counter with keys as tuples containing filenames, module names, component types, component names, and values as their respective counts.
-    parquet_path (str): The file path where the Parquet file will be saved.
-
-    Returns:
-    None: The function saves the data as a Parquet file and does not return anything.
-    """
-    rows = []
-    for (filename, module, component_type, component_name), count in counter.items():
-        row = {"filename": filename, "module": module, "component_type": component_type, "component_name": component_name, "count": count}
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-    df.to_parquet(parquet_path, engine="pyarrow")
 
 
 def load_library_reference(library_pickle_path: str) -> Dict:
