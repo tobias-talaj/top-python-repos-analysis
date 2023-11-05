@@ -3,40 +3,48 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
+def _perform_aggregation(df: pd.DataFrame, group_columns: list, agg_column: str, agg_func, final_columns: list) -> pd.DataFrame:
+    df = df[group_columns + [agg_column]]
+    df = df.groupby(group_columns)[agg_column].agg(agg_func).reset_index()
+    df.columns = final_columns
+    return df
+
+
 def count_libraries_usage(df: pd.DataFrame, by: str = 'files') -> pd.DataFrame:
-    df_copy = df.copy()
-    if by == 'files':
-        df_copy = df_copy.groupby('module')['filename'].nunique().reset_index()
-        df_copy.columns = ['module_name', 'count']
-        return df_copy
-    elif by == 'occurences':
-        return df_copy.groupby('module')['count'].sum().reset_index()
-    else:
+    if by not in ('files', 'occurences'):
         raise ValueError(f"Invalid value for 'by' parameter. Accepted values are 'files' or 'occurrences', got '{by}'")
+    elif by == 'files':
+        return _perform_aggregation(df, ['module'], 'filename', 'nunique', ['module_name', 'count'])
+    elif by == 'occurences':
+        return _perform_aggregation(df, ['module'], 'count', 'sum', ['module_name', 'count'])
     
 
+def count_component_types_by_module(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.groupby(['module', 'component_type']).size().reset_index(name='count')
+    return df
+
+
 def count_components_usage(df: pd.DataFrame, module: str, by: str = 'files', component_types: tuple = ('function', 'attribute', 'class', 'method', 'exception')) -> pd.DataFrame:
-    df_copy = df.copy()
-    df_copy = df_copy[(df_copy['module'] == module) & (df_copy['component_type'].isin(component_types))]
-    if by == 'files':
-        df_copy = df_copy[['component_name', 'filename']].groupby('component_name')['filename'].nunique().reset_index()
-        df_copy.columns = ['component_name', 'count']
-        return df_copy
+    df = df[(df['module'] == module) & (df['component_type'].isin(component_types))]
+
+    if by not in ('files', 'occurences'):
+        raise ValueError(f"Invalid value for 'by' parameter. Accepted values are 'files' or 'occurrences', got '{by}'")
+    elif by == 'files':
+        return _perform_aggregation(df, ['component_type', 'component_name'], 'filename', 'nunique', ['component_type', 'component_name', 'count'])
     elif by == 'occurences':
-        return df_copy[['component_name', 'count']].groupby('component_name')['count'].sum().reset_index()
+        return _perform_aggregation(df, ['component_type', 'component_name'], 'count', 'sum', ['component_type', 'component_name', 'count'])
 
 
 def show_popularity(df: pd.DataFrame, title: str, top_n: int = 10):
-    df_copy = df.copy()
-    entity_type = [col for col in df_copy.columns if col != 'count'][0]
-    df_copy = df_copy.sort_values('count', ascending=False).head(top_n)
+    entity_type = [col for col in df.columns if col != 'count'][0]
+    df = df.sort_values('count', ascending=False).head(top_n)
 
     fig, ax = plt.subplots(figsize=(16, 6))
-    sns.barplot(y=entity_type, x='count', data=df_copy, orient='h', ax=ax)
+    sns.barplot(y=entity_type, x='count', data=df, orient='h', ax=ax)
     
     for i in range(top_n):
-        ax.text(df_copy['count'].iloc[i], i, 
-                f' {df_copy["count"].iloc[i]:,.0f}', 
+        ax.text(df['count'].iloc[i], i, 
+                f' {df["count"].iloc[i]:,.0f}', 
                 va='center')
     
     ax.spines['top'].set_visible(False)

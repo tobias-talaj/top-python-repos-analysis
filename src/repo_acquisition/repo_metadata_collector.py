@@ -19,7 +19,7 @@ def get_repo_info(repo):
     return response.json()
 
 def main():
-    with open('./notebooks/jupyter_repo_names.pickle', 'rb') as f:
+    with open('/home/tobiasz/Repos/top-python-repos-analysis/data/python_repo_names.pickle', 'rb') as f:
         repos = pickle.load(f)
 
     repo_data = {}
