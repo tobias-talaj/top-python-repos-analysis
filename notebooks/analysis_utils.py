@@ -1,61 +1,74 @@
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def _perform_aggregation(df: pd.DataFrame, group_columns: list, agg_column: str, agg_func, final_columns: list) -> pd.DataFrame:
-    df = df[group_columns + [agg_column]]
-    df = df.groupby(group_columns)[agg_column].agg(agg_func).reset_index()
-    df.columns = final_columns
-    return df
+def module_in_repos(df):
+    return df.groupby('module')['repo'].nunique().reset_index().rename(columns={'repo': 'count'})
 
 
-def count_libraries_usage(df: pd.DataFrame, by: str = 'files') -> pd.DataFrame:
-    if by not in ('files', 'occurences'):
-        raise ValueError(f"Invalid value for 'by' parameter. Accepted values are 'files' or 'occurrences', got '{by}'")
-    elif by == 'files':
-        return _perform_aggregation(df, ['module'], 'filename', 'nunique', ['module_name', 'count'])
-    elif by == 'occurences':
-        return _perform_aggregation(df, ['module'], 'count', 'sum', ['module_name', 'count'])
-    
-
-def count_component_types_by_module(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.groupby(['module', 'component_type']).size().reset_index(name='count')
-    return df
+def module_in_files(df):
+    return df.groupby('module')['filename'].nunique().reset_index().rename(columns={'filename': 'count'})
 
 
-def count_components_usage(df: pd.DataFrame, module: str, by: str = 'files', component_types: tuple = ('function', 'attribute', 'class', 'method', 'exception')) -> pd.DataFrame:
-    df = df[(df['module'] == module) & (df['component_type'].isin(component_types))]
-
-    if by not in ('files', 'occurences'):
-        raise ValueError(f"Invalid value for 'by' parameter. Accepted values are 'files' or 'occurrences', got '{by}'")
-    elif by == 'files':
-        return _perform_aggregation(df, ['component_type', 'component_name'], 'filename', 'nunique', ['component_type', 'component_name', 'count'])
-    elif by == 'occurences':
-        return _perform_aggregation(df, ['component_type', 'component_name'], 'count', 'sum', ['component_type', 'component_name', 'count'])
+def module_component_counts(df):
+    return df.groupby(['module', 'component_type'])['count'].sum().reset_index()
 
 
-def show_popularity(df: pd.DataFrame, title: str, top_n: int = 10):
-    entity_type = [col for col in df.columns if col != 'count'][0]
-    df = df.sort_values('count', ascending=False).head(top_n)
+def component_in_files(df, module):
+    return df[df['module'] == module].groupby(['component_type', 'component_name'])['filename'].nunique().reset_index().rename(columns={'filename': 'count'})
 
-    fig, ax = plt.subplots(figsize=(16, 6))
-    sns.barplot(y=entity_type, x='count', data=df, orient='h', ax=ax)
-    
-    for i in range(top_n):
-        ax.text(df['count'].iloc[i], i, 
-                f' {df["count"].iloc[i]:,.0f}', 
-                va='center')
-    
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    
+
+def component_counts(df, module):
+    return df[df['module'] == module].groupby(['component_type', 'component_name'])['count'].sum().reset_index()
+
+
+def specific_component_type_in_files(df, module, component_type):
+    return df[(df['module'] == module) & (df['component_type'] == component_type)].groupby('component_name')['filename'].nunique().reset_index().rename(columns={'filename': 'count'})
+
+
+def specific_component_type_counts(df, module, component_type):
+    return df[(df['module'] == module) & (df['component_type'] == component_type)].groupby('component_name')['count'].sum().reset_index()
+
+
+def show_popularity(df, title, top_n=None, full_count=None):
+    color_map = {
+        'attribute': '#488A99',
+        'class': '#DBAE58',
+        'exception': '#AC3E31',
+        'function': '#484848',
+        'method': '#DADADA'       
+    }
+
+    fig, ax = plt.subplots(figsize=(16, 8))
+
+    if set(df.columns) == {'module', 'count'} or set(df.columns) == {'component_name', 'count'}:
+        df = df.sort_values(by='count', ascending=False).head(top_n).set_index(df.columns[0]).sort_values(by='count')
+        df.plot(kind='barh', edgecolor='white', ax=ax, width=0.8, color=list(color_map.values()))
+        ax.get_legend().remove()
+
+    elif set(df.columns) == {'module', 'component_type', 'count'} or set(df.columns) == {'component_name', 'component_type', 'count'}:
+        grouping_column = 'module' if 'module' in df.columns else 'component_name'
+        top_n_names = df.groupby(grouping_column)['count'].sum().sort_values(ascending=False).head(top_n).index
+        df = df[df[grouping_column].isin(top_n_names)]
+        df = df.pivot(index=grouping_column, columns='component_type', values='count')
+        df = df.loc[df.sum(axis=1).sort_values(ascending=True).index]
+        df.plot(kind='barh', stacked=True, edgecolor='white', ax=ax, width=0.8, color=[color_map[col] for col in df.columns])
+        ax.legend(title='Component Type', loc='lower right')
+
+    for i, total in enumerate(df.sum(axis=1)):
+        if full_count:
+            percentage = total / full_count * 100  # calculate percentage
+            ax.text(total + 0.1, i, '{:1.0f}%'.format(percentage), va="center", fontsize=12)  # display percentage
+        else:
+            ax.text(total + 0.1, i, '{:1.0f}'.format(total), va="center", fontsize=12)
+
     ax.set_xlabel('')
     ax.set_ylabel('')
+    ax.set_title(title, fontsize=16)
     ax.set_xticks([])
-    ax.tick_params(axis='y', length=0)
+    ax.tick_params(axis='y', length=0, labelsize=12)
     
-    plt.title(title)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+        
     plt.show()

@@ -23,8 +23,8 @@ def main():
         repos = pickle.load(f)
 
     repo_data = {}
-    for repo in repos:
-        print(repo)
+    for i, repo in enumerate(repos):
+        print(i, repo)
         try:
             repo_info = get_repo_info(repo)
             if repo_info is not None and 'items' in repo_info and len(repo_info['items']) > 0:
