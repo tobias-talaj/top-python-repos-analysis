@@ -1,4 +1,6 @@
+import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 
@@ -57,8 +59,8 @@ def show_popularity(df, title, top_n=None, full_count=None):
 
     for i, total in enumerate(df.sum(axis=1)):
         if full_count:
-            percentage = total / full_count * 100  # calculate percentage
-            ax.text(total + 0.1, i, '{:1.0f}%'.format(percentage), va="center", fontsize=12)  # display percentage
+            percentage = total / full_count * 100
+            ax.text(total + 0.1, i, '{:1.0f}%'.format(percentage), va="center", fontsize=12)
         else:
             ax.text(total + 0.1, i, '{:1.0f}'.format(total), va="center", fontsize=12)
 
@@ -71,4 +73,34 @@ def show_popularity(df, title, top_n=None, full_count=None):
     for spine in ax.spines.values():
         spine.set_visible(False)
         
+    plt.show()
+
+
+def get_corr_table(df, index='filename', column='component_name', binary=True, top_n=24):
+    if index in ('filename', 'repo') and column in ('component_name', 'module'):
+        df = df[[index, column, 'count']]
+        if index == 'filename':
+            top = df.groupby(column)['filename'].nunique().sort_values(ascending=False).head(top_n).index
+        else:
+            top = df.groupby(column)['count'].sum().sort_values(ascending=False).head(top_n).index
+
+        pivot_df = df[df[column].isin(top)].pivot_table(index=index, columns=column, values='count', fill_value=0)
+
+        if binary:
+            binary_df = pivot_df.copy()
+            binary_df[binary_df > 0] = 1
+            return binary_df.corr()
+        else:
+            return pivot_df.corr()
+        
+
+def show_correlation(df, title):
+    mask = np.triu(np.ones_like(df, dtype=bool))
+    plt.figure(figsize=(16, 16))
+    ax = sns.heatmap(df, cmap='coolwarm', center=0, annot=True, annot_kws={'size': 12}, fmt='.2f', mask=mask, cbar=False)
+    ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 12)
+    ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 12)
+    ax.tick_params(bottom=False, left=False)
+    ax.set(xlabel='', ylabel='')
+    plt.title(title)
     plt.show()
