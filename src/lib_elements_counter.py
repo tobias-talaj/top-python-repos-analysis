@@ -128,19 +128,20 @@ def update_df(df: pd.DataFrame, code_file: str, module: str, component_type: str
         df.loc[len(df)] = new_row
 
 
-def process_file(logger: logging.Logger, lib_dict: Dict, code_file: str) -> pd.DataFrame:
+def process_file(logger: logging.Logger, lib_dict: Dict, code_file: str, mode: str) -> pd.DataFrame:
     """
-    Process a single file, returning a DataFrame with counts of library components.
+    Process a single file, returning a DataFrame with counts of library components or a DataFrame with imported modules.
 
     Parameters:
     logger: Logger object for logging messages.
     lib_dict: A dictionary representing the API reference of one or more libraries.
     code_file: The path to the file to process.
+    mode: Mode of operation, 'full' for full analysis or 'imports' for filenames and imports only.
 
     Returns:
-    A DataFrame containing counts of library components within the given code file.
+    A DataFrame containing counts of library components or a DataFrame with filenames and imported modules within the given code file.
     """
-    columns = ['filename', 'module', 'component_type', 'component_name', 'count']
+    columns = ['filename', 'module', 'component_type', 'component_name', 'count'] if mode == 'full' else ['filename', 'module']
     df = pd.DataFrame(columns=columns)
     try:
         with open(code_file, 'r', encoding='utf-8', errors='ignore') as f:
@@ -156,6 +157,12 @@ def process_file(logger: logging.Logger, lib_dict: Dict, code_file: str) -> pd.D
         tree = ast.parse(code)
         imported_modules, direct_imports = get_imported_modules(tree)
 
+        if mode == "imports":
+            for module in imported_modules:
+                new_row = {'filename': code_file, 'module': module}
+                df.loc[len(df)] = new_row
+            return df
+
         for node in ast.walk(tree):
             for module, components in lib_dict.items():
                 if module not in imported_modules:
@@ -170,7 +177,7 @@ def process_file(logger: logging.Logger, lib_dict: Dict, code_file: str) -> pd.D
         return pd.DataFrame(columns=columns)
 
 
-def process_files_in_parallel(process_file_func: Callable[[logging.Logger, Dict, str], pd.DataFrame], lib_dict: Dict, code_files: List[str], logger: logging.Logger) -> List[pd.DataFrame]:
+def process_files_in_parallel(process_file_func: Callable[[logging.Logger, Dict, str, str], pd.DataFrame], lib_dict: Dict, code_files: List[str], logger: logging.Logger, mode: str) -> List[pd.DataFrame]:
     """
     Process the given files in parallel, returning a list of DataFrames.
 
@@ -179,18 +186,26 @@ def process_files_in_parallel(process_file_func: Callable[[logging.Logger, Dict,
     lib_dict: A dictionary representing the library.
     code_files: A list of paths to Python code files.
     logger: Logger object for logging messages.
+    mode: Mode of operation, 'full' for full analysis or 'imports' for filenames and imports only.
 
     Returns:
     A list of DataFrames, each resulting from processing a single file.
     """
-    process_file_partial = partial(process_file_func, logger, lib_dict)
+    process_file_partial = partial(process_file_func, logger, lib_dict, mode=mode)
     with Pool() as pool:
-        return pool.map(process_file_partial, code_files)
+        results = pool.map(process_file_partial, code_files)
+    print(f'Number of DataFrames: {len(results)}')
+    print(f'Shape of first DataFrame: {results[0].shape if results else "No DataFrames"}')
+    return [df for df in results if not df.empty]
 
 
 def concatenate_and_save(df_list: List[pd.DataFrame], output_file: str) -> None:
     """
     Concatenate the given list of DataFrames and save the result to a parquet file.
+
+    If the DataFrames contain a 'count' column, the function will group by the 'filename', 'module', 
+    'component_type', and 'component_name' columns and sum the 'count' column. If the 'count' column 
+    does not exist, the function will simply concatenate the DataFrames.
 
     Parameters:
     df_list: A list of DataFrames.
@@ -200,5 +215,8 @@ def concatenate_and_save(df_list: List[pd.DataFrame], output_file: str) -> None:
     None
     """
     df_concat = pd.concat(df_list)
-    df_final = df_concat.groupby(['filename', 'module', 'component_type', 'component_name'], as_index=False).sum()
+    if 'count' in df_concat.columns:
+        df_final = df_concat.groupby(['filename', 'module', 'component_type', 'component_name'], as_index=False).sum()
+    else:
+        df_final = df_concat
     df_final.to_parquet(output_file, engine="pyarrow")

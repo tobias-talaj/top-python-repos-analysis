@@ -102,5 +102,5 @@ def show_correlation(df, title):
     ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 12)
     ax.tick_params(bottom=False, left=False)
     ax.set(xlabel='', ylabel='')
-    plt.title(title)
+    plt.title(title, fontsize=16)
     plt.show()
