@@ -2,13 +2,24 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 
 
-def module_in_repos(df):
+def libraries_in_repos(df):
+    df = df.drop(['module'], axis=1).drop_duplicates()
+    return df.groupby('library')['repo'].nunique().reset_index().rename(columns={'repo': 'count'})
+
+
+def libraries_in_files(df):
+    df = df.drop(['module'], axis=1).drop_duplicates()
+    return df.groupby('library')['filename'].nunique().reset_index().rename(columns={'filename': 'count'})
+
+
+def modules_in_repos(df):
     return df.groupby('module')['repo'].nunique().reset_index().rename(columns={'repo': 'count'})
 
 
-def module_in_files(df):
+def modules_in_files(df):
     return df.groupby('module')['filename'].nunique().reset_index().rename(columns={'filename': 'count'})
 
 
@@ -43,13 +54,13 @@ def show_popularity(df, title, top_n=None, full_count=None):
 
     fig, ax = plt.subplots(figsize=(16, 8))
 
-    if set(df.columns) == {'module', 'count'} or set(df.columns) == {'component_name', 'count'}:
+    if len(df.columns) == 2:
         df = df.sort_values(by='count', ascending=False).head(top_n).set_index(df.columns[0]).sort_values(by='count')
         df.plot(kind='barh', edgecolor='white', ax=ax, width=0.8, color=list(color_map.values()))
         ax.get_legend().remove()
 
-    elif set(df.columns) == {'module', 'component_type', 'count'} or set(df.columns) == {'component_name', 'component_type', 'count'}:
-        grouping_column = 'module' if 'module' in df.columns else 'component_name'
+    elif len(df.columns) == 3:
+        grouping_column = set(df.columns) & set(['module', 'library', 'component_name']).pop()
         top_n_names = df.groupby(grouping_column)['count'].sum().sort_values(ascending=False).head(top_n).index
         df = df[df[grouping_column].isin(top_n_names)]
         df = df.pivot(index=grouping_column, columns='component_type', values='count')
@@ -57,12 +68,14 @@ def show_popularity(df, title, top_n=None, full_count=None):
         df.plot(kind='barh', stacked=True, edgecolor='white', ax=ax, width=0.8, color=[color_map[col] for col in df.columns])
         ax.legend(title='Component Type', loc='lower right')
 
+    ax.set_xlim([-max(df.sum(axis=1)) * 0.08, max(df.sum(axis=1)) * 1.1])
+
     for i, total in enumerate(df.sum(axis=1)):
         if full_count:
             percentage = total / full_count * 100
-            ax.text(total + 0.1, i, '{:1.0f}%'.format(percentage), va="center", fontsize=12)
+            ax.text(-0.05, i, '{:1.1f}%'.format(percentage), va="center", fontsize=12, ha="right")
         else:
-            ax.text(total + 0.1, i, '{:1.0f}'.format(total), va="center", fontsize=12)
+            ax.text(-0.05, i, '{:1.0f}'.format(total), va="center", fontsize=12, ha="right")
 
     ax.set_xlabel('')
     ax.set_ylabel('')
@@ -77,7 +90,9 @@ def show_popularity(df, title, top_n=None, full_count=None):
 
 
 def get_corr_table(df, index='filename', column='component_name', binary=True, top_n=24):
-    if index in ('filename', 'repo') and column in ('component_name', 'module'):
+    if index in ('filename', 'repo') and column in ('component_name', 'module', 'library'):
+        if 'count' not in df.columns:
+            df['count'] = 1
         df = df[[index, column, 'count']]
         if index == 'filename':
             top = df.groupby(column)['filename'].nunique().sort_values(ascending=False).head(top_n).index
@@ -96,8 +111,10 @@ def get_corr_table(df, index='filename', column='component_name', binary=True, t
 
 def show_correlation(df, title):
     mask = np.triu(np.ones_like(df, dtype=bool))
+    cmap = LinearSegmentedColormap.from_list("custom", ['#DADADA', '#484848'], N=256)
+
     plt.figure(figsize=(16, 16))
-    ax = sns.heatmap(df, cmap='coolwarm', center=0, annot=True, annot_kws={'size': 12}, fmt='.2f', mask=mask, cbar=False)
+    ax = sns.heatmap(df, cmap=cmap, center=0, annot=True, annot_kws={'size': 12}, fmt='.2f', mask=mask, cbar=False)
     ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 12)
     ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 12)
     ax.tick_params(bottom=False, left=False)
