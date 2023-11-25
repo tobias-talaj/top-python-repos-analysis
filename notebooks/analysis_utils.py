@@ -5,6 +5,18 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
 
+def transform_df(df, imports_only=False):
+    df = df.copy()
+    df['repo'] = df['filename'].str.split('/').str[5]
+    df['filename'] = df.apply(lambda row: row['filename'].split(row['repo'])[-1], axis=1).str[1:]
+    if imports_only:
+        df = df[['repo', 'filename', 'module']]
+    else:
+        df = df[['repo', 'filename', 'module', 'component_type', 'component_name', 'count']]
+    df['library'] = df['module'].str.split('.').str[0]
+    return df
+
+
 def libraries_in_repos(df):
     df = df.drop(['module'], axis=1).drop_duplicates()
     return df.groupby('library')['repo'].nunique().reset_index().rename(columns={'repo': 'count'})
@@ -109,7 +121,7 @@ def get_corr_table(df, index='filename', column='component_name', binary=True, t
             return pivot_df.corr()
         
 
-def show_correlation(df, title):
+def show_correlation_matrix(df, title):
     mask = np.triu(np.ones_like(df, dtype=bool))
     cmap = LinearSegmentedColormap.from_list("custom", ['#DADADA', '#484848'], N=256)
 
@@ -120,4 +132,44 @@ def show_correlation(df, title):
     ax.tick_params(bottom=False, left=False)
     ax.set(xlabel='', ylabel='')
     plt.title(title, fontsize=16)
+    plt.show()
+
+
+def show_correlations(s1, s2, s3):
+    df1 = s1.reset_index()
+    df1.columns = ['Library', 'Correlation']
+    df2 = s2.reset_index()
+    df2.columns = ['Library', 'Correlation']
+    df3 = s3.reset_index()
+    df3.columns = ['Library', 'Correlation']
+
+    df1 = round(df1.iloc[1:], 2)
+    df2 = round(df2.iloc[1:], 2)
+    df3 = round(df3.iloc[1:], 2)
+
+    fig, axs = plt.subplots(1, 3, figsize=(14, 5.5))
+    for ax in axs:
+        ax.axis('off')
+
+    dfs = [df1, df2, df3]
+
+    for i, ax in enumerate(axs):
+        tbl = ax.table(cellText=dfs[i].values,
+                    colLabels=dfs[i].columns,
+                    cellLoc='center',
+                    loc='center')
+
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(14)
+        tbl.scale(1.2, 1.2)
+
+        cells = [key for key in tbl.get_celld().keys()]
+        for cell in cells:
+            tbl.get_celld()[cell].set_edgecolor("grey")
+            tbl.get_celld()[cell].set_linewidth(0.5)
+
+        library_title = s1.index[0] if i == 0 else (s2.index[0] if i == 1 else s3.index[0])
+        ax.set_title(f'{library_title}', fontsize=16)
+
+    plt.tight_layout()
     plt.show()
