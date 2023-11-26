@@ -10,7 +10,11 @@ COLOR_MAP = {
     'class': '#DBAE58',
     'exception': '#AC3E31',
     'function': '#484848',
-    'method': '#DADADA'       
+    'method': '#DADADA',
+    'repos': '#488A99',
+    'files': '#484848',
+    'corr_low': '#DADADA',
+    'corr_high': '#484848'
 }
 
 
@@ -64,12 +68,12 @@ def specific_component_type_counts(df, module, component_type):
     return df[(df['module'] == module) & (df['component_type'] == component_type)].groupby('component_name')['count'].sum().reset_index()
 
 
-def plot_popularity(df, title, top_n=None, full_count=None):
+def plot_popularity(df, title, top_n=None, full_count=None, files_or_repos='repos'):
     fig, ax = plt.subplots(figsize=(16, 8))
 
     if len(df.columns) == 2:
         df = df.sort_values(by='count', ascending=False).head(top_n).set_index(df.columns[0]).sort_values(by='count')
-        df.plot(kind='barh', edgecolor='white', ax=ax, width=0.8, color=list(COLOR_MAP.values()))
+        df.plot(kind='barh', edgecolor='white', ax=ax, width=0.8, color=COLOR_MAP[files_or_repos])
         ax.get_legend().remove()
 
     elif len(df.columns) == 3:
@@ -86,7 +90,7 @@ def plot_popularity(df, title, top_n=None, full_count=None):
     for i, total in enumerate(df.sum(axis=1)):
         if full_count:
             percentage = total / full_count * 100
-            ax.text(-0.05, i, '{:1.1f}%'.format(percentage), va="center", fontsize=12, ha="right")
+            ax.text(-0.05, i, '{:1.2f}%'.format(percentage), va="center", fontsize=12, ha="right")
         else:
             ax.text(-0.05, i, '{:1.0f}'.format(total), va="center", fontsize=12, ha="right")
 
@@ -124,7 +128,7 @@ def get_corr_table(df, index='filename', column='component_name', binary=True, t
 
 def plot_correlation_matrix(df, title):
     mask = np.triu(np.ones_like(df, dtype=bool))
-    cmap = LinearSegmentedColormap.from_list("custom", [COLOR_MAP['method'], COLOR_MAP['function']], N=256)
+    cmap = LinearSegmentedColormap.from_list("custom", [COLOR_MAP['corr_low'], COLOR_MAP['corr_high']], N=256)
 
     plt.figure(figsize=(16, 16))
     ax = sns.heatmap(df, cmap=cmap, center=0, annot=True, annot_kws={'size': 12}, fmt='.2f', mask=mask, cbar=False)
