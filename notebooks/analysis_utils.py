@@ -5,6 +5,15 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
 
+COLOR_MAP = {
+    'attribute': '#488A99',
+    'class': '#DBAE58',
+    'exception': '#AC3E31',
+    'function': '#484848',
+    'method': '#DADADA'       
+}
+
+
 def transform_df(df, imports_only=False):
     df = df.copy()
     df['repo'] = df['filename'].str.split('/').str[5]
@@ -55,20 +64,12 @@ def specific_component_type_counts(df, module, component_type):
     return df[(df['module'] == module) & (df['component_type'] == component_type)].groupby('component_name')['count'].sum().reset_index()
 
 
-def show_popularity(df, title, top_n=None, full_count=None):
-    color_map = {
-        'attribute': '#488A99',
-        'class': '#DBAE58',
-        'exception': '#AC3E31',
-        'function': '#484848',
-        'method': '#DADADA'       
-    }
-
+def plot_popularity(df, title, top_n=None, full_count=None):
     fig, ax = plt.subplots(figsize=(16, 8))
 
     if len(df.columns) == 2:
         df = df.sort_values(by='count', ascending=False).head(top_n).set_index(df.columns[0]).sort_values(by='count')
-        df.plot(kind='barh', edgecolor='white', ax=ax, width=0.8, color=list(color_map.values()))
+        df.plot(kind='barh', edgecolor='white', ax=ax, width=0.8, color=list(COLOR_MAP.values()))
         ax.get_legend().remove()
 
     elif len(df.columns) == 3:
@@ -77,7 +78,7 @@ def show_popularity(df, title, top_n=None, full_count=None):
         df = df[df[grouping_column].isin(top_n_names)]
         df = df.pivot(index=grouping_column, columns='component_type', values='count')
         df = df.loc[df.sum(axis=1).sort_values(ascending=True).index]
-        df.plot(kind='barh', stacked=True, edgecolor='white', ax=ax, width=0.8, color=[color_map[col] for col in df.columns])
+        df.plot(kind='barh', stacked=True, edgecolor='white', ax=ax, width=0.8, color=[COLOR_MAP[col] for col in df.columns])
         ax.legend(title='Component Type', loc='lower right')
 
     ax.set_xlim([-max(df.sum(axis=1)) * 0.08, max(df.sum(axis=1)) * 1.1])
@@ -121,9 +122,9 @@ def get_corr_table(df, index='filename', column='component_name', binary=True, t
             return pivot_df.corr()
         
 
-def show_correlation_matrix(df, title):
+def plot_correlation_matrix(df, title):
     mask = np.triu(np.ones_like(df, dtype=bool))
-    cmap = LinearSegmentedColormap.from_list("custom", ['#DADADA', '#484848'], N=256)
+    cmap = LinearSegmentedColormap.from_list("custom", [COLOR_MAP['method'], COLOR_MAP['function']], N=256)
 
     plt.figure(figsize=(16, 16))
     ax = sns.heatmap(df, cmap=cmap, center=0, annot=True, annot_kws={'size': 12}, fmt='.2f', mask=mask, cbar=False)
@@ -135,19 +136,19 @@ def show_correlation_matrix(df, title):
     plt.show()
 
 
-def show_correlations(s1, s2, s3):
-    df1 = s1.reset_index()
-    df1.columns = ['Library', 'Correlation']
-    df2 = s2.reset_index()
-    df2.columns = ['Library', 'Correlation']
-    df3 = s3.reset_index()
-    df3.columns = ['Library', 'Correlation']
+def prepare_series_for_corr(s):
+    df = s.reset_index()
+    df.columns = ['Library', 'Correlation']
+    df = round(df.iloc[1:], 2)
+    return df
 
-    df1 = round(df1.iloc[1:], 2)
-    df2 = round(df2.iloc[1:], 2)
-    df3 = round(df3.iloc[1:], 2)
 
-    fig, axs = plt.subplots(1, 3, figsize=(14, 5.5))
+def plot_correlations(s1, s2, s3, title):
+    df1 = prepare_series_for_corr(s1)
+    df2 = prepare_series_for_corr(s2)
+    df3 = prepare_series_for_corr(s3)
+    
+    fig, axs = plt.subplots(1, 3, figsize=(14, 4.5))
     for ax in axs:
         ax.axis('off')
 
@@ -155,9 +156,9 @@ def show_correlations(s1, s2, s3):
 
     for i, ax in enumerate(axs):
         tbl = ax.table(cellText=dfs[i].values,
-                    colLabels=dfs[i].columns,
-                    cellLoc='center',
-                    loc='center')
+                       colLabels=dfs[i].columns,
+                       cellLoc='center',
+                       loc='center')
 
         tbl.auto_set_font_size(False)
         tbl.set_fontsize(14)
@@ -171,5 +172,7 @@ def show_correlations(s1, s2, s3):
         library_title = s1.index[0] if i == 0 else (s2.index[0] if i == 1 else s3.index[0])
         ax.set_title(f'{library_title}', fontsize=16)
 
-    plt.tight_layout()
+    fig.suptitle(title, fontsize=16)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.99])
     plt.show()
